@@ -6,13 +6,14 @@ const cors = require("cors");
 const archiver = require("archiver");
 const WebSocket = require("ws");
 const http = require("http");
-
+const multer = require("multer");
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const downloadDir = path.join(__dirname, "downloads");
 const baseDir = path.join(__dirname, "downloadSelectedImage");
+const uploadDir = path.join(__dirname, "uploads");
 
 const port = 3001;
 
@@ -335,12 +336,82 @@ function notifyClients() {
   });
 }
 
-app.post("/upload", (req, res) => {
-  // Simulated image upload logic
-  // Save file to downloadDir, then notify clients
-  notifyClients();
-  res.status(200).send("Image uploaded");
+const getUniqueFileName = (directory, originalName) => {
+  const ext = path.extname(originalName);
+  const baseName = path.basename(originalName, ext);
+  let uniqueName = originalName;
+  let counter = 1;
+
+  while (fs.existsSync(path.join(directory, uniqueName))) {
+    uniqueName = `${baseName}-${counter}${ext}`;
+    counter++;
+  }
+
+  return uniqueName;
+};
+
+// Set up storage engine for multer
+const storage = multer.diskStorage({
+  destination: "./uploads",
+  filename: (req, file, cb) => {
+    const uniqueFileName = getUniqueFileName("./uploads", file.originalname);
+    cb(null, uniqueFileName);
+  },
 });
+
+const upload = multer({ storage: storage });
+
+// Handle multiple image uploads
+app.post("/upload", upload.array("images", 1000), (req, res) => {
+  if (!req.files) {
+    return res.status(400).send("No files uploaded.");
+  }
+  res.send(
+    req.files.map((file) => ({
+      fileName: file.filename,
+      filePath: `/uploads/${file.filename}`,
+    }))
+  );
+});
+
+app.get("/uploads", (req, res) => {
+  const uploadDir = path.join(__dirname, "uploads");
+
+  try {
+    if (!fs.existsSync(uploadDir)) {
+      return res.status(200).json({ files: [] });
+    }
+
+    const files = fs
+      .readdirSync(uploadDir)
+      .filter(
+        (file) =>
+          fs.statSync(path.join(uploadDir, file)).isFile() &&
+          file !== ".DS_Store"
+      );
+
+    res.status(200).json({ files });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error reading downloads directory",
+      error: error.message,
+    });
+  }
+});
+
+app.get("/uploads/:filename", (req, res) => {
+  const { filename } = req.params;
+  const filePath = path.join(__dirname, "uploads", filename);
+
+  if (fs.existsSync(filePath)) {
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ message: "File not found" });
+  }
+});
+
+// Serve static files from the uploads directory
+app.use("/uploads", express.static("uploads"));
 
 server.listen(port, () => {
   console.log(`Server running at http://localhost:${port}`);
