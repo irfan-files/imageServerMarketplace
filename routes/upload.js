@@ -2,6 +2,7 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
+const chokidar = require("chokidar");
 
 const router = express.Router();
 const uploadDir = path.join(__dirname, "../uploads");
@@ -79,8 +80,6 @@ router.get("/uploads/:filename", (req, res) => {
     res.status(404).json({ message: "File not found" });
   }
 });
-
-const chokidar = require("chokidar");
 
 const watcher = chokidar.watch(uploadDir, {
   ignored: /(^|[\/\\])\../, // ignore dotfiles
