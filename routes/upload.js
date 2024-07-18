@@ -21,9 +21,13 @@ const getUniqueFileName = (directory, originalName) => {
 };
 
 const storage = multer.diskStorage({
-  destination: uploadDir,
+  destination: (req, file, cb) => {
+    console.log("Uploading to:", uploadDir);
+    cb(null, uploadDir);
+  },
   filename: (req, file, cb) => {
     const uniqueFileName = getUniqueFileName(uploadDir, file.originalname);
+    console.log("Saving file as:", uniqueFileName);
     cb(null, uniqueFileName);
   },
 });
@@ -75,6 +79,17 @@ router.get("/uploads/:filename", (req, res) => {
     res.status(404).json({ message: "File not found" });
   }
 });
+
+const chokidar = require("chokidar");
+
+const watcher = chokidar.watch(uploadDir, {
+  ignored: /(^|[\/\\])\../, // ignore dotfiles
+  persistent: true,
+});
+
+watcher
+  .on("add", (path) => console.log(`File ${path} has been added`))
+  .on("unlink", (path) => console.log(`File ${path} has been removed`));
 
 router.use("/uploads", express.static(uploadDir));
 
