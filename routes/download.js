@@ -51,32 +51,68 @@ const getAllFiles = async (dirPath, fileList = []) => {
   return fileList;
 };
 
+// router.post("/download", async (req, res) => {
+//   const { url, filename } = req.body;
+
+//   try {
+//     const response = await axios.get(url, { responseType: "stream" });
+//     const filePath = path.join(downloadDir, filename);
+
+//     ensureDirectoryExistence(filePath);
+
+//     const writer = fs.createWriteStream(filePath);
+//     response.data.pipe(writer);
+
+//     writer.on("finish", () => {
+//       res
+//         .status(200)
+//         .json({ message: "File downloaded successfully", filePath });
+//     });
+//     writer.on("error", (err) => {
+//       res
+//         .status(500)
+//         .json({ message: "Error downloading file", error: err.message });
+//     });
+//   } catch (error) {
+//     res
+//       .status(500)
+//       .json({ message: "Error fetching file", error: error.message });
+//   }
+// });
+
 router.post("/download", async (req, res) => {
   const { url, filename } = req.body;
 
+  console.log(`Received request to download image: ${url}, save as: ${filename}`);
+  
   try {
+    // Ensure the URL is valid
+    if (!url) {
+      return res.status(400).json({ message: "URL is required" });
+    }
+
     const response = await axios.get(url, { responseType: "stream" });
     const filePath = path.join(downloadDir, filename);
 
+    // Ensure directory exists
     ensureDirectoryExistence(filePath);
 
     const writer = fs.createWriteStream(filePath);
     response.data.pipe(writer);
 
     writer.on("finish", () => {
-      res
-        .status(200)
-        .json({ message: "File downloaded successfully", filePath });
+      console.log(`Download complete: ${filename}`);
+      res.status(200).json({ message: "File downloaded successfully", filePath });
     });
+    
     writer.on("error", (err) => {
-      res
-        .status(500)
-        .json({ message: "Error downloading file", error: err.message });
+      console.error(`Error writing file: ${err.message}`);
+      res.status(500).json({ message: "Error downloading file", error: err.message });
     });
+
   } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error fetching file", error: error.message });
+    console.error(`Error fetching file from URL: ${error.message}`);
+    res.status(500).json({ message: "Error fetching file", error: error.message });
   }
 });
 

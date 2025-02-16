@@ -53,8 +53,8 @@ router.delete("/deleteupload", (req, res) => {
   });
 });
 
-router.delete("/delete-all", (req, res) => {
-  fs.readdir(downloadDir, (err, files) => {
+router.delete("/delete-all", async (req, res) => {
+  fs.readdir(downloadDir, async (err, files) => {
     if (err) {
       return res
         .status(500)
@@ -65,18 +65,28 @@ router.delete("/delete-all", (req, res) => {
       return res.status(200).json({ message: "No files to delete" });
     }
 
-    files.forEach((file) => {
+    // Create an array of promises for deleting each file
+    const deletePromises = files.map((file) => {
       const filePath = path.join(downloadDir, file);
-      fs.unlink(filePath, (err) => {
-        if (err) {
-          return res
-            .status(500)
-            .json({ message: "Error deleting file", error: err.message });
-        }
+      return new Promise((resolve, reject) => {
+        fs.unlink(filePath, (err) => {
+          if (err) {
+            reject(`Error deleting file: ${file}, ${err.message}`);
+          } else {
+            resolve(`Deleted: ${file}`);
+          }
+        });
       });
     });
 
-    res.status(200).json({ message: "All files deleted successfully" });
+    try {
+      // Wait for all delete operations to complete
+      await Promise.all(deletePromises);
+      res.status(200).json({ message: "All files deleted successfully" });
+    } catch (error) {
+      // If any of the file deletions fail, return the error
+      res.status(500).json({ message: "Error deleting files", error: error });
+    }
   });
 });
 
